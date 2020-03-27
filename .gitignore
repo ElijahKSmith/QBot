@@ -1,0 +1,5 @@
+/.vscode
+/bot-env
+/logs
+config.json
+*.log
