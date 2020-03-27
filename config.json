@@ -1,0 +1,6 @@
+{
+    "prefix": "!",
+    "bot-token": "your-token-here",
+    "riot-api-key": "your-api-key-here",
+    "region": "na"
+} 
