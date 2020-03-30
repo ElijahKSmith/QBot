@@ -2,6 +2,7 @@ import discord
 import logging
 import json
 import requests
+import sqlite3
 
 from sys import exit
 from pathlib import Path
