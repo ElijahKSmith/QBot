@@ -7,7 +7,8 @@ conn.execute('''CREATE TABLE verified(
              summoner   TEXT             NOT NULL,
              summonerId TEXT             NOT NULL,
              accountId  TEXT             NOT NULL,
-             puuid      TEXT             NOT NULL
+             puuid      TEXT             NOT NULL,
+             role       TEXT             NOT NULL
              );''')
 
 conn.execute('''CREATE TABLE unverified(
