@@ -3,3 +3,4 @@
 /logs
 config.json
 *.log
+/__pycache__

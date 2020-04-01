@@ -73,6 +73,7 @@ bot = commands.Bot(command_prefix=settings['prefix'])
 @bot.event
 async def on_ready():
     print("Ready to set the world on fire? hehehe... -Brand")
+    await bot.change_presence(activity=discord.Game(name="with the enemy support"))
 
 #A test command to make sure that the bot is hooking into the Discord API properly
 @bot.command()
@@ -84,11 +85,19 @@ async def ping(ctx):
 async def echo(ctx, *, args):
     await ctx.send(args)
 
+#A COMMAND ONLY FOR TESTING HOTLOADING OF COGS/EXTENSIONS TO BE REMOVED IN RELEASES
+@bot.command(name="eval")
+@commands.is_owner()
+async def _eval(ctx, *, args):
+    await ctx.send(f"Done: {eval(args)}")
+
 #If the debug flag is enabled log messages to console to ensure the bot is connected properly
 @bot.event
 async def on_message(message):
     if debug == True:
         print(f"{message.guild} - #{message.channel} - {message.author}({message.author.id}): {message.content}")
     await bot.process_commands(message)
+
+bot.load_extension("verification")
 
 bot.run(settings['bot-token'])
