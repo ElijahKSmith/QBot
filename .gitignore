@@ -1,6 +1,7 @@
 /.vscode
+/__pycache__
 /bot-env
 /logs
 config.json
+*.db
 *.log
-/__pycache__

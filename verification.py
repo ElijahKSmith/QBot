@@ -1,3 +1,4 @@
+import checks
 from discord.ext import commands
 
 class Verification(commands.Cog, name="Verification"):
@@ -5,8 +6,9 @@ class Verification(commands.Cog, name="Verification"):
         self.bot = bot
 
     @commands.command()
+    @commands.check(checks.is_unverified)
     async def register(self, ctx):
-        member = ctx.author
+        member = ctx.author.id
         await ctx.send("Not yet implemented")
 
 def setup(bot):
