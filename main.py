@@ -1,29 +1,12 @@
 import discord
 import logging
 import json
-import requests
-import sqlite3
+import resolve_host
 
 from sys import exit
 from pathlib import Path
 from datetime import datetime
 from discord.ext import commands
-
-def switch_platform(arg):
-    switch = {
-        'br': 'br1',
-        'eun': 'eun1',
-        'euw': 'euw1',
-        'jp': 'jp1',
-        'kr': 'kr',
-        'lan': 'la1',
-        'las': 'la2',
-        'na': 'na1',
-        'oce': 'oc1',
-        'tr': 'tr1',
-        'ru': 'ru'
-    }
-    return switch.get(arg, '-1')
 
 # TODO: Change debug to be a launch option instead of program variable
 debug = True
@@ -39,11 +22,10 @@ with open('config.json') as cfg:
 rgkey = settings['riot-api-key']
 
 #Get region from config and set host
-host = switch_platform(settings['region'].lower())
+host = resolve_host.switch_platform(settings['region'].lower())
 if host == '-1':
     print("ERROR: Region in config is invald, must be one of the folowing: ['br', 'eun', 'euw', 'jp', 'kr', 'lan', 'las', 'na', 'oce', 'tr', 'ru']")
     exit(1)
-host = 'https://' + host + '.api.riotgames.com/lol/'
 
 """
 Set up logging
