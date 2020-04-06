@@ -75,6 +75,7 @@ async def echo(ctx, *, args):
 @bot.command(name="eval")
 @commands.is_owner()
 async def _eval(ctx, *, args):
+    logger.info(f"Ran the following eval code, unexpected behavior beyond this point: {args}")
     await ctx.send(f"Done: {eval(args)}")
 
 #If the debug flag is enabled log messages to console to ensure the bot is connected properly
@@ -88,10 +89,11 @@ async def on_message(message):
 Verification
 """
 
-@commands.command()
+@bot.command()
 @commands.check(checks.is_unverified)
 @commands.guild_only()
 async def register(ctx, *, args):
+    logger.info(f"{ctx.author}({ctx.author.id}) invoked 'register'")
     member = ctx.author.id
 
     settings = json.loads(list(Path('.').glob('config.json'))[0].read_text())
@@ -115,12 +117,13 @@ async def register(ctx, *, args):
         return
 
     #Add the user to the DB in the unverified table
-    info = (member, summoner['name'])
+    info = (str(member), summoner['name'])
 
     conn = sqlite3.connect('server.db')
     c = conn.cursor()
     c.execute("INSERT INTO unverified VALUES (?,?)", info)
     conn.commit()
+    logger.info(f"Wrote {str(info)} to table unverified")
     conn.close()
 
     #Create the DM to send to the user
@@ -134,14 +137,34 @@ async def register(ctx, *, args):
     await ctx.author.send(message, file=f)
     await ctx.send(f"<@{member}>, check your DMs for verification information.")
 
-#TODO: Add error catch for if user has DMs from server turned off
 @register.error
 async def register_error(ctx, error):
     if isinstance(error, commands.NoPrivateMessage):
         pass
     elif isinstance(error, commands.CheckFailure):
-        await ctx.send(f"<@{ctx.author.id}> , you cannot register, you may be already registered or are currently in the verification process.")
+        await ctx.send(f"<@{ctx.author.id}>, you cannot register, you may be already registered or are currently in the verification process.")
+    elif isinstance(error, commands.CommandInvokeError):
+        member = (str(ctx.author.id),)
+        conn = sqlite3.connect('server.db')
+        c = conn.cursor()
+        c.execute('delete from unverified where discordId=?', member)
+        conn.commit()
+        logger.info(f"CommandInvokeError caused me to delete entry {ctx.author.id} from table unverified")
+        conn.close()
+        
+        await ctx.send(f"<@{ctx.author.id}>, something went wrong. Do you have \"allow direct messages from server members\" disabled?")
+        logger.error(f"{error}")
     else:
-        print(error)
+        logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
+
+@bot.command()
+@commands.check(checks.pending_verification)
+@commands.dm_only()
+async def done(ctx):
+    logger.info(f"{ctx.author}({ctx.author.id}) invoked 'done'")
+
+@done.error
+async def done_error(ctx, error):
+    pass
 
 bot.run(settings['bot-token'])
