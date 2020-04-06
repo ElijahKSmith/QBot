@@ -15,6 +15,29 @@ from discord.ext import commands
 # TODO: Change debug to be a launch option instead of program variable
 debug = True
 
+def switch_platform(arg):
+    switch = {
+        'br': 'br1',
+        'eun': 'eun1',
+        'euw': 'euw1',
+        'jp': 'jp1',
+        'kr': 'kr',
+        'lan': 'la1',
+        'las': 'la2',
+        'na': 'na1',
+        'oce': 'oc1',
+        'tr': 'tr1',
+        'ru': 'ru'
+    }
+
+    host = switch.get(arg, '-1')
+
+    if host == '-1':
+        return '-1'
+    else:
+        return 'https://' + host + '.api.riotgames.com/lol/' 
+
+
 """
 Parse JSON
 """
@@ -26,7 +49,7 @@ with open('config.json') as cfg:
 rgkey = settings['riot-api-key']
 
 #Get region from config and set host
-host = resolve_host.switch_platform(settings['region'].lower())
+host = switch_platform(settings['region'].lower())
 if host == '-1':
     print("ERROR: Region in config is invald, must be one of the folowing: ['br', 'eun', 'euw', 'jp', 'kr', 'lan', 'las', 'na', 'oce', 'tr', 'ru']")
     exit(1)
@@ -94,15 +117,13 @@ Verification
 @commands.guild_only()
 async def register(ctx, *, args):
     logger.info(f"{ctx.author}({ctx.author.id}) invoked 'register'")
-    member = ctx.author.id
 
-    settings = json.loads(list(Path('.').glob('config.json'))[0].read_text())
-    host = resolve_host.switch_platform(settings['region'])
+    member = ctx.author.id
 
     #Check to see if the summoner that was passed in is real on the server in config
     parsed_summoner = requests.utils.quote(args)
     query = host + 'summoner/v4/summoners/by-name/' + parsed_summoner
-    payload = {'api_key': settings['riot-api-key']}
+    payload = {'api_key': rgkey}
     response = requests.get(query, params=payload)
     summoner = response.json()
 
@@ -147,7 +168,7 @@ async def register_error(ctx, error):
         member = (str(ctx.author.id),)
         conn = sqlite3.connect('server.db')
         c = conn.cursor()
-        c.execute('delete from unverified where discordId=?', member)
+        c.execute('DELETE FROM unverified WHERE discordId=?', member)
         conn.commit()
         logger.info(f"CommandInvokeError caused me to delete entry {ctx.author.id} from table unverified")
         conn.close()
@@ -163,8 +184,18 @@ async def register_error(ctx, error):
 async def done(ctx):
     logger.info(f"{ctx.author}({ctx.author.id}) invoked 'done'")
 
+    member = ctx.author.id
+
 @done.error
 async def done_error(ctx, error):
-    pass
+    if isinstance(error, commands.PrivateMessageOnly):
+        pass
+    elif isinstance(error, commands.CheckFailure):
+        await ctx.send(f"You are not in the verification process.")
+    elif isinstance(error, commands.CommandInvokeError):
+        #TODO: Add stuff here where user is put back into unverified and removed from verified
+        logger.error(f"{error}")
+    else:
+        logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 
 bot.run(settings['bot-token'])
