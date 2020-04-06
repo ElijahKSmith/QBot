@@ -5,7 +5,6 @@ import sqlite3
 import requests
 
 import checks
-import resolve_host
 
 from sys import exit
 from pathlib import Path
