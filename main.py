@@ -151,7 +151,7 @@ async def register(ctx, *, args):
     f = discord.File("verification.gif", filename="verification.gif")
     message = "Thank you for registering! Currently your summoner name is unverified, so you will be unable to queue until you verify it.\n"
     message = message + "To do so, enter the verification code `" + str(member) + "` in the third-party verification tab in your LoL account. "
-    message += "To find this entry field, click the gear then select \"Verification\" under the \"About\" tab as show in the attached gif.\n"
+    message += "To find this entry field, click the gear in the client then select \"Verification\" under the \"About\" tab as shown in the attached gif.\n"
     message += "Once you've entered the verification code, reply to me with `" + settings['prefix'] + "done` to complete the process."
 
     #Send the DM and reply to the user in the guild
