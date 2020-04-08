@@ -227,9 +227,22 @@ async def done(ctx):
 
     #Check to see if 3rd party code matches
     if tpcode == result[0]:
-        await ctx.send("It matches!")
+        #Using the data pulled from the call to the summoner endpoint remove user from table unverified and place into verified
+        data = (result[0], result[1], summoner['id'], summoner['accountId'], summoner['puuid'], 'MEMBER')
+
+        conn = sqlite3.connect('server.db')
+        c = conn.cursor()
+        c.execute("INSERT INTO verified VALUES (?, ?, ?, ?, ?, ?)", data)
+        c.execute("DELETE FROM unverified WHERE discordId=?", params)
+        conn.commit()
+        conn.close()
+
+        message = "Success! The Summoner \"" + result[1] + "\" has been bound to your account and you may queue with it.\n"
+        message += "If you change your Summoner Name, simply use `" + settings['prefix'] + "refresh` to update it.\n"
+        message += "If you need to register a different LoL account in the future, use `" + settings['prefix'] + "unbind` to remove your current one."
+        await ctx.send(message)
     else:
-        await ctx.send("Boo hoo :(")
+        await ctx.send(f"The third-party verification code does not match. Please try entering it again then reply with `{settings['prefix']}done`.")
 
 @done.error
 async def done_error(ctx, error):
@@ -238,7 +251,28 @@ async def done_error(ctx, error):
     elif isinstance(error, commands.CheckFailure):
         await ctx.send(f"You are not in the verification process.")
     elif isinstance(error, commands.CommandInvokeError):
-        #TODO: Add stuff here where user is put back into unverified and removed from verified
+        #This in theory should work but I haven't tested it yet
+        member = ctx.author.id
+        params = (str(member),)
+
+        conn = sqlite3.connect('server.db')
+        c = conn.cursor()
+
+        c.execute("SELECT * FROM verified WHERE discordId=?", params)
+        result = c.fetchone()
+
+        if result == None:
+            logger.error(f"{error}")
+            return
+
+        old = (result[0], result[1])
+
+        c.execute("INSERT INTO unverified VALUES (?,?)", old)
+        c.execute("DELETE FROM verified WHERE discordId=?", params)
+
+        conn.commit()
+        conn.close()
+
         logger.info(f"CommandInvokeError caused me to delete entry {ctx.author.id} from table verified and readd it to unverified")
         logger.error(f"{error}")
     else:
