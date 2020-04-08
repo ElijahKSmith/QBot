@@ -81,7 +81,7 @@ bot = commands.Bot(command_prefix=settings['prefix'])
 @bot.event
 async def on_ready():
     print("Ready to set the world on fire? hehehe... -Brand")
-    await bot.change_presence(activity=discord.Game(name="with the enemy support"))
+    await bot.change_presence(activity=discord.Game(name="with the enemy support."))
 
 #A test command to make sure that the bot is hooking into the Discord API properly
 @bot.command()
@@ -131,7 +131,7 @@ async def register(ctx, *, args):
         return
     elif response.status_code != 200:
         try:
-            await ctx.send(f"<@{member}> ERROR {summoner['status']['status_code']}: {summoner['status']['message']}")
+            await ctx.send(f"<@{member}> ERROR {summoner['status']['status_code']}: {summoner['status']['message']}.")
         except:
             await ctx.send(f"<@{member}> ERROR {response.status_code}, no other information is available.")
         return
@@ -185,6 +185,52 @@ async def done(ctx):
 
     member = ctx.author.id
 
+    #Pull Summoner Name from DB and make sure it exists
+    conn = sqlite3.connect('server.db')
+    c = conn.cursor()
+    params = (str(member),)
+
+    c.execute("SELECT * FROM unverified WHERE discordId=?", params)
+    result = c.fetchone()
+    conn.close()
+
+    parsed_summoner = requests.utils.quote(result[1])
+    query = host + 'summoner/v4/summoners/by-name/' + parsed_summoner
+    payload = {'api_key': rgkey}
+    response = requests.get(query, params=payload)
+    summoner = response.json()
+
+    if response.status_code == 404:
+        await ctx.send(f"No information was found for the summoner \"{result[1]}\" on the {settings['region'].upper()} server. Did you change your name?")
+        return
+    elif response.status_code != 200:
+        try:
+            await ctx.send(f"ERROR {summoner['status']['status_code']}: {summoner['status']['message']}.")
+        except:
+            await ctx.send(f"ERROR {response.status_code}, no other information is available.")
+        return
+
+    #Pull the 3rd party code that the user inputted
+    query = host + 'platform/v4/third-party-code/by-summoner/' + summoner['id']
+    response = requests.get(query, params=payload)
+    tpcode = response.json()
+
+    if response.status_code == 404:
+        await ctx.send(f"No third-party verification code was found for \"{result[1]}\". Please make sure it says \"verification has been sent\" on the Verification page after clicking save.")
+        return
+    elif response.status_code != 200:
+        try:
+            await ctx.send(f"ERROR {summoner['status']['status_code']}: {summoner['status']['message']}.")
+        except:
+            await ctx.send(f"ERROR {response.status_code}, no other information is available.")
+        return
+
+    #Check to see if 3rd party code matches
+    if tpcode == result[0]:
+        await ctx.send("It matches!")
+    else:
+        await ctx.send("Boo hoo :(")
+
 @done.error
 async def done_error(ctx, error):
     if isinstance(error, commands.PrivateMessageOnly):
@@ -193,6 +239,7 @@ async def done_error(ctx, error):
         await ctx.send(f"You are not in the verification process.")
     elif isinstance(error, commands.CommandInvokeError):
         #TODO: Add stuff here where user is put back into unverified and removed from verified
+        logger.info(f"CommandInvokeError caused me to delete entry {ctx.author.id} from table verified and readd it to unverified")
         logger.error(f"{error}")
     else:
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
