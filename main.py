@@ -262,6 +262,7 @@ async def done_error(ctx, error):
         result = c.fetchone()
 
         if result == None:
+            conn.close()
             logger.error(f"{error}")
             return
 
