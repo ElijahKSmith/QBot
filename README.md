@@ -7,6 +7,10 @@ The bot is currently in alpha stages of development and therefore any builds not
 
 Download a build off of the releases page or by cloning the repository and [follow the instructions on the project wiki](https://github.com/ElijahKSmith/QBot/wiki/Getting-Started) to get started!
 
+### Development Plan
+
+See the bot's development plan [here](https://github.com/ElijahKSmith/QBot/wiki/Development-Plan).
+
 ### Feedback
 
 If you have any questions about the bot or its development please join my Discord server by clicking on the icon below!
