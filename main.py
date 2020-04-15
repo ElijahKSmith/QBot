@@ -5,11 +5,12 @@ import sqlite3
 import requests
 
 import checks
+from player import Player
 
 from sys import exit
 from pathlib import Path
 from datetime import datetime
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 # TODO: Change debug to be a launch option instead of program variable
 debug = True
@@ -74,14 +75,22 @@ logger.addHandler(loghandler)
 """
 Start Bot
 """
-
+queue = []
 bot = commands.Bot(command_prefix=settings['prefix'])
+
+@tasks.loop(seconds=10)
+async def player_count():
+    name = str(len(queue)) + " in queue"
+    await bot.change_presence(activity=discord.Activity(name=name, type=discord.ActivityType.watching))
+
+@player_count.before_loop
+async def player_count_before():
+    await bot.wait_until_ready()
 
 #TODO: Put champ quotes in a file and random pull
 @bot.event
 async def on_ready():
     print("Ready to set the world on fire? hehehe... -Brand")
-    await bot.change_presence(activity=discord.Game(name="with the enemy support."))
 
 #A test command to make sure that the bot is hooking into the Discord API properly
 @bot.command()
@@ -149,7 +158,7 @@ async def register(ctx, *, args):
     #Create the DM to send to the user
     f = discord.File("verification.gif", filename="verification.gif")
     message = "Thank you for registering! Currently your summoner name is unverified, so you will be unable to queue until you verify it.\n"
-    message = message + "To do so, enter the verification code `" + str(member) + "` in the third-party verification tab in your LoL account. "
+    message += "To do so, enter the verification code `" + str(member) + "` in the third-party verification tab in your LoL account. "
     message += "To find this entry field, click the gear in the client then select \"Verification\" under the \"About\" tab as shown in the attached gif.\n"
     message += "Once you've entered the verification code, reply to me with `" + settings['prefix'] + "done` to complete the process."
 
@@ -279,4 +288,64 @@ async def done_error(ctx, error):
     else:
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 
+"""
+Queue
+"""
+
+@bot.command(name="q")
+@commands.check(checks.is_verified)
+@commands.guild_only()
+async def enqueue(ctx):
+    logger.info(f"{ctx.author}({ctx.author.id}) invoked 'enqueue'")
+
+    member = ctx.author.id
+    params = (str(member),)
+
+    #Grab user
+    conn = sqlite3.connect('server.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM verified WHERE discordId=?", params)
+    result = c.fetchone()
+    conn.close()
+
+    #Grab user's current rank (FLEX or SOLO, whichever is higher)
+    query = host + 'league/v4/entries/by-summoner/' + result[2]
+    payload = {'api_key': rgkey}
+    response = requests.get(query, params=payload)
+    summoner = response.json()
+
+    if response.status_code == 404:
+        message = "No information was found for the summoner \"" + result[1] + "\" on the " + settings['region'].upper() + " server.\n"
+        message += "Use `" + settings['prefix'] + "refresh` to pull your updated account information before queuing again.\n"
+        message += "If you switched your currently linked account to another server, use `" + settings['prefix'] + "unbind` to unlink it and rebind a new account to queue."
+        await ctx.send(message)
+        return
+    elif response.status_code != 200:
+        try:
+            await ctx.send(f"ERROR {summoner['status']['status_code']}: {summoner['status']['message']}.")
+        except:
+            await ctx.send(f"ERROR {response.status_code}, no other information is available.")
+        return
+
+    #Convert current rank to numerical value
+
+    #Queue the player
+
+    #Return confirmation
+    ctx.send(f"<@{ctx.author.id}>, you have been queued. To remove yourself from the queue, use `{settings['prefix']}dq`.")
+
+@enqueue.error
+async def enqueue_error(ctx, error):
+    if isinstance(error, commands.NoPrivateMessage):
+        pass
+    elif isinstance(error, commands.CheckFailure):
+        await ctx.send(f"<@{ctx.author.id}>, you cannot queue, you must register first using `{settings['prefix']}register [summoner]`.")
+    else:
+        logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
+
+"""
+Run Bot
+"""
+
+player_count.start()
 bot.run(settings['bot-token'])
