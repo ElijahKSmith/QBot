@@ -11,6 +11,10 @@ Download a build off of the releases page or by cloning the repository and [foll
 
 See the bot's development plan [here](https://github.com/ElijahKSmith/QBot/wiki/Development-Plan).
 
+### FAQ
+
+You can find the FAQ [here](https://github.com/ElijahKSmith/QBot/wiki/FAQ).
+
 ### Feedback
 
 If you have any questions about the bot or its development please join my Discord server by clicking on the icon below!
