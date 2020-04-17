@@ -165,7 +165,8 @@ async def register(ctx, *, args):
     message = "Thank you for registering! Currently your summoner name is unverified, so you will be unable to queue until you verify it.\n"
     message += "To do so, enter the verification code `" + str(member) + "` in the third-party verification tab in your LoL account. "
     message += "To find this entry field, click the gear in the client then select \"Verification\" under the \"About\" tab as shown in the attached gif.\n"
-    message += "Once you've entered the verification code, reply to me with `" + settings['prefix'] + "done` to complete the process."
+    message += "Once you've entered the verification code, reply to me with `" + settings['prefix'] + "done` to complete the process.\n"
+    message += "If you need to stop this process, reply to me with `" + settings['prefix'] + "stop` to reset it."
 
     #Send the DM and reply to the user in the guild
     await ctx.author.send(message, file=f)
@@ -290,6 +291,113 @@ async def done_error(ctx, error):
 
         logger.info(f"CommandInvokeError caused me to delete entry {ctx.author.id} from table verified and readd it to unverified")
         logger.error(f"{error}")
+    else:
+        logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
+
+@bot.command()
+@commands.check(checks.pending_verification)
+@commands.dm_only()
+async def stop(ctx):
+    member = ctx.author.id
+    params= (str(member),)
+
+    conn = sqlite3.connect('server.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM unverified WHERE discordId=?", params)
+    conn.commit()
+    conn.close()
+
+    await ctx.send(f"You have been successfully removed from the verification process.")
+
+@stop.error
+async def stop_error(ctx, error):
+    if isinstance(error, commands.PrivateMessageOnly):
+        pass
+    elif isinstance(error, commands.CheckFailure):
+        await ctx.send(f"You are not in the verification process.")
+    else:
+        logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
+
+#todo: make sure user cant use this while in queue
+#this is untested and written at 4pm on a friday so monday elijah pls check, refresh too
+@bot.command()
+@commands.check(checks.is_verified)
+@commands.guild_only()
+async def unbind(ctx):
+    logger.info(f"{ctx.author}({ctx.author.id}) invoked 'unbind'")
+
+    member = ctx.author.id
+    params = (str(member),)
+
+    conn = sqlite3.connect('server.db')
+    c = conn.cursor()
+    c.execute("DELETE FROM verified WHERE discordId=?", params)
+    conn.commit()
+    conn.close()
+
+    await ctx.send(f"<@{ctx.author.id}>, your account has been unbound. Rebind a new one by using `{settings['prefix']}register [summoner]`.")
+
+@unbind.error
+async def unbind_error(ctx, error):
+    if isinstance(error, commands.NoPrivateMessage):
+        pass
+    elif isinstance(error, commands.CheckFailure):
+        await ctx.send(f"<@{ctx.author.id}>, you cannot unbind if you don't have an account verified.")
+    else:
+        logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
+
+#todo: make sure user cant use this while in queue
+@bot.command()
+@commands.check(checks.is_verified)
+@commands.guild_only()
+async def refresh(ctx):
+    logger.info(f"{ctx.author}({ctx.author.id}) invoked 'refresh'")
+
+    member = ctx.author.id
+    params = (str(member),)
+
+    #Grab current data
+    conn = sqlite3.connect('server.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM verified WHERE discordId=?", params)
+    result = c.fetchone()
+
+    #Pull new data using PUUID (the current value that doesn't change)
+    query = host + 'summoner/v4/summoners/by-puuid/' + result[4]
+    payload = {'api_key': rgkey}
+    response = requests.get(query, params=payload)
+    summoner = response.json()
+
+    if response.status_code == 404:
+        conn.close()
+        message = "<@" + str(member) + ">, no information was found for the summoner \"" + result[1] + "\" on the " + settings['region'].upper() + " server. "
+        message += "Please try to refresh again, or rebind your account using `" + settings['prefix'] + "unbind` then `" + settings['prefix'] + "register`."
+        await ctx.send(message)
+        return
+    elif response.status_code != 200:
+        conn.close()
+        try:
+            await ctx.send(f"<@{member}> ERROR {summoner['status']['status_code']}: {summoner['status']['message']}.")
+        except:
+            await ctx.send(f"<@{member}> ERROR {response.status_code}, no other information is available.")
+        return
+
+    #Remove old values and insert new ones
+    params = (summoner['name'], summoner['id'], summoner['accountId'], str(member))
+
+    c.execute("UPDATE verified SET summoner=?, summonerId=?, accountId=? WHERE discordId=?", params)
+    conn.commit()
+    conn.close()
+
+    #Confirmation back to the user in context
+    await ctx.send(f"<@{ctx.author.id}>, your account has been refreshed.")
+
+@refresh.error
+async def refresh_error(ctx, error):
+    if isinstance(error, commands.NoPrivateMessage):
+        pass
+    elif isinstance(error, commands.CheckFailure):
+        await ctx.send(f"<@{ctx.author.id}>, you cannot refresh if you don't have an account verified.")
     else:
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 
