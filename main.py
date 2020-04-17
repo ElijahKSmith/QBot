@@ -37,6 +37,11 @@ def switch_platform(arg):
     else:
         return 'https://' + host + '.api.riotgames.com/lol/' 
 
+async def in_queue(ctx):
+    for x in queue:
+        if ctx.author.id == x.discordId:
+            return True
+    return False
 
 """
 Parse JSON
@@ -312,7 +317,7 @@ async def enqueue(ctx):
     query = host + 'league/v4/entries/by-summoner/' + result[2]
     payload = {'api_key': rgkey}
     response = requests.get(query, params=payload)
-    summoner = response.json()
+    ranks = response.json()
 
     if response.status_code == 404:
         message = "No information was found for the summoner \"" + result[1] + "\" on the " + settings['region'].upper() + " server.\n"
@@ -328,8 +333,43 @@ async def enqueue(ctx):
         return
 
     #Convert current rank to numerical value
+    rank = []
+
+    if len(ranks) == 0:
+        rank.append(0)
+    else:
+        tier_nums = {
+            'IRON': 300,
+            'BRONZE': 700,
+            'SILVER': 1100,
+            'GOLD': 1500,
+            'PLATINUM': 1900,
+            'DIAMOND': 2300,
+            'MASTER': 2400,
+            'GRANDMASTER': 2900,
+            'CHALLENGER': 3400
+        }
+
+        div_nums = {
+            'I': 0,
+            'II': -100,
+            'III': -200, 
+            'IV': -300
+        }
+
+
+        for i in range(len(ranks)):
+            tier = tier_nums.get(ranks[i]['tier'], 0)
+            division = div_nums.get(ranks[i]['rank'], 0)
+            lp = ranks[i]['leaguePoints']
+            
+            total = tier + division + lp
+
+            rank.append(total)
+
 
     #Queue the player
+    queue.append(Player(member, result[1], max(rank)))
 
     #Return confirmation
     ctx.send(f"<@{ctx.author.id}>, you have been queued. To remove yourself from the queue, use `{settings['prefix']}dq`.")
@@ -340,6 +380,36 @@ async def enqueue_error(ctx, error):
         pass
     elif isinstance(error, commands.CheckFailure):
         await ctx.send(f"<@{ctx.author.id}>, you cannot queue, you must register first using `{settings['prefix']}register [summoner]`.")
+    else:
+        logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
+
+@bot.command(name="dq")
+@commands.check(in_queue)
+@commands.guild_only()
+async def dequeue(ctx):
+    logger.info(f"{ctx.author}({ctx.author.id}) invoked 'dequeue'")
+
+    member = ctx.author.id
+    removed = False
+
+    for x in queue:
+        if member == x.discordId:
+            queue.remove(x)
+            removed = True
+            break
+
+    if removed:
+        await ctx.send(f"<@{ctx.author.id}>, you have been removed from the queue.")
+    else:
+        await ctx.send(f"<@{ctx.author.id}>, I couldn't remove you from the queue. Please try again, and if the problem persists let the bot owner know.")
+
+
+@dequeue.error
+async def dequeue_error(ctx, error):
+    if isinstance(error, commands.NoPrivateMessage):
+        pass
+    elif isinstance(error, commands.CheckFailure):
+        await ctx.send(f"<@{ctx.author.id}>, you cannot dequeue before you queue. 🤔")
     else:
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 

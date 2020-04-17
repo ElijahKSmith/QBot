@@ -2,7 +2,7 @@ import sqlite3
 from discord.ext import commands
 
 #Checks to see if a user entry for the user in context exists in the verified table
-def is_verified(ctx):
+async def is_verified(ctx):
     conn = sqlite3.connect('server.db')
     cursor = conn.cursor()
     member = (str(ctx.author.id),)
@@ -14,7 +14,7 @@ def is_verified(ctx):
     return result != None
 
 #Checks to see if a user entry for the user in context exists in the unverified table
-def pending_verification(ctx):
+async def pending_verification(ctx):
     conn = sqlite3.connect('server.db')
     cursor = conn.cursor()
     member = (str(ctx.author.id),)
@@ -26,7 +26,7 @@ def pending_verification(ctx):
     return result != None
 
 #Checks to see if a user entry for the user in context does not exist in either the verified or unverified table
-def is_unverified(ctx):
+async def is_unverified(ctx):
     conn = sqlite3.connect('server.db')
     cursor = conn.cursor()
     member = (str(ctx.author.id),)
@@ -43,4 +43,3 @@ def is_unverified(ctx):
         conn.close()
 
         return result == None
-
