@@ -250,6 +250,7 @@ async def done(ctx):
         c.execute("INSERT INTO verified VALUES (?, ?, ?, ?, ?, ?)", data)
         c.execute("DELETE FROM unverified WHERE discordId=?", params)
         conn.commit()
+        logger.info(f"Wrote {str(data)} to table verified and removed accordingly from unverified")
         conn.close()
 
         message = "Success! The Summoner \"" + result[1] + "\" has been bound to your account and you may queue with it.\n"
@@ -298,6 +299,8 @@ async def done_error(ctx, error):
 @commands.check(checks.pending_verification)
 @commands.dm_only()
 async def stop(ctx):
+    logger.info(f"{ctx.author}({ctx.author.id}) invoked 'done'")
+
     member = ctx.author.id
     params= (str(member),)
 
@@ -305,6 +308,7 @@ async def stop(ctx):
     c = conn.cursor()
     c.execute("DELETE FROM unverified WHERE discordId=?", params)
     conn.commit()
+    logger.info(f"Removed entry {member} from table unverified")
     conn.close()
 
     await ctx.send(f"You have been successfully removed from the verification process.")
@@ -319,7 +323,6 @@ async def stop_error(ctx, error):
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 
 #todo: make sure user cant use this while in queue
-#this is untested and written at 4pm on a friday so monday elijah pls check, refresh too
 @bot.command()
 @commands.check(checks.is_verified)
 @commands.guild_only()
@@ -333,6 +336,7 @@ async def unbind(ctx):
     c = conn.cursor()
     c.execute("DELETE FROM verified WHERE discordId=?", params)
     conn.commit()
+    logger.info(f"Removed entry {member} from table verified")
     conn.close()
 
     await ctx.send(f"<@{ctx.author.id}>, your account has been unbound. Rebind a new one by using `{settings['prefix']}register [summoner]`.")
@@ -387,6 +391,7 @@ async def refresh(ctx):
 
     c.execute("UPDATE verified SET summoner=?, summonerId=?, accountId=? WHERE discordId=?", params)
     conn.commit()
+    logger.info(f"Updated {str(params)} in table verified")
     conn.close()
 
     #Confirmation back to the user in context
@@ -480,7 +485,7 @@ async def enqueue(ctx):
     queue.append(Player(member, result[1], max(rank)))
 
     #Return confirmation
-    ctx.send(f"<@{ctx.author.id}>, you have been queued. To remove yourself from the queue, use `{settings['prefix']}dq`.")
+    await ctx.send(f"<@{ctx.author.id}>, you have been queued. To remove yourself from the queue, use `{settings['prefix']}dq`.")
 
 @enqueue.error
 async def enqueue_error(ctx, error):
