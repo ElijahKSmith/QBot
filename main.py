@@ -43,6 +43,12 @@ async def in_queue(ctx):
             return True
     return False
 
+async def not_in_queue(ctx):
+    for x in queue:
+        if ctx.author.id == x.discordId:
+            return False
+    return True
+
 """
 Parse JSON
 """
@@ -80,9 +86,17 @@ logger.addHandler(loghandler)
 """
 Start Bot
 """
+
 queue = []
 bot = commands.Bot(command_prefix=settings['prefix'])
 
+"""
+Background Loops
+"""
+
+######
+# Updates the message in the bot's "watching" status to show current number of queued players
+######
 @tasks.loop(seconds=10)
 async def player_count():
     name = str(len(queue)) + " in queue"
@@ -91,6 +105,21 @@ async def player_count():
 @player_count.before_loop
 async def player_count_before():
     await bot.wait_until_ready()
+
+######
+# Matchmaking for users in the queue
+######
+@tasks.loop()
+async def matchmake():
+    pass
+
+@matchmake.before_loop
+async def matchmake_before():
+    await bot.wait_until_ready()
+
+"""
+Basic Features
+"""
 
 #TODO: Put champ quotes in a file and random pull
 @bot.event
@@ -125,6 +154,11 @@ async def on_message(message):
 Verification
 """
 
+######
+# Register
+# Allows the user to start the verification process with the Summoner psased in args
+# Throws errors when used in DMs, if the user has allow DMs from server disabled, or is not currently unverified
+######
 @bot.command()
 @commands.check(checks.is_unverified)
 @commands.guild_only()
@@ -192,6 +226,11 @@ async def register_error(ctx, error):
     else:
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 
+######
+# Done
+# Allows a user to confirm that they have successfully inputted the third-party verification code for validation
+# Throws errors if used outside of DMs, the user has allow DMs from server disabled, or is not pending verification
+######
 @bot.command()
 @commands.check(checks.pending_verification)
 @commands.dm_only()
@@ -295,6 +334,11 @@ async def done_error(ctx, error):
     else:
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 
+######
+# Stop
+# Allows a user to stop the verification process and reset it
+# Throws errors if used outside of DMs or is not pending verification
+######
 @bot.command()
 @commands.check(checks.pending_verification)
 @commands.dm_only()
@@ -322,9 +366,14 @@ async def stop_error(ctx, error):
     else:
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 
-#todo: make sure user cant use this while in queue
+######
+# Unbind
+# Allows a user to unbind their currently verified account
+# Throws errors if used in DMs, the user is not verified, or the user is currently in queue
+######
 @bot.command()
 @commands.check(checks.is_verified)
+@commands.check(not_in_queue)
 @commands.guild_only()
 async def unbind(ctx):
     logger.info(f"{ctx.author}({ctx.author.id}) invoked 'unbind'")
@@ -346,13 +395,18 @@ async def unbind_error(ctx, error):
     if isinstance(error, commands.NoPrivateMessage):
         pass
     elif isinstance(error, commands.CheckFailure):
-        await ctx.send(f"<@{ctx.author.id}>, you cannot unbind if you don't have an account verified.")
+        await ctx.send(f"<@{ctx.author.id}>, you cannot unbind if you don't have an account verified or are in queue.")
     else:
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 
-#todo: make sure user cant use this while in queue
+######
+# Refresh
+# Allows a user to refresh their account parameters if they've moved regions or changed their Summoner Name
+# Throws errors if used in DMs, the user is not verified, or the user is currently in queue
+######
 @bot.command()
 @commands.check(checks.is_verified)
+@commands.check(not_in_queue)
 @commands.guild_only()
 async def refresh(ctx):
     logger.info(f"{ctx.author}({ctx.author.id}) invoked 'refresh'")
@@ -402,7 +456,7 @@ async def refresh_error(ctx, error):
     if isinstance(error, commands.NoPrivateMessage):
         pass
     elif isinstance(error, commands.CheckFailure):
-        await ctx.send(f"<@{ctx.author.id}>, you cannot refresh if you don't have an account verified.")
+        await ctx.send(f"<@{ctx.author.id}>, you cannot refresh if you don't have an account verified or are in queue.")
     else:
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 
@@ -410,8 +464,14 @@ async def refresh_error(ctx, error):
 Queue
 """
 
+######
+# Enqueue (Q)
+# Allows a user to queue up for matchmaking
+# Throws errors if used in DMs, the user is not verified, or is already in queue
+######
 @bot.command(name="q")
 @commands.check(checks.is_verified)
+@commands.check(not_in_queue)
 @commands.guild_only()
 async def enqueue(ctx):
     logger.info(f"{ctx.author}({ctx.author.id}) invoked 'enqueue'")
@@ -492,10 +552,15 @@ async def enqueue_error(ctx, error):
     if isinstance(error, commands.NoPrivateMessage):
         pass
     elif isinstance(error, commands.CheckFailure):
-        await ctx.send(f"<@{ctx.author.id}>, you cannot queue, you must register first using `{settings['prefix']}register [summoner]`.")
+        await ctx.send(f"<@{ctx.author.id}>, you cannot queue if you have not registered first using `{settings['prefix']}register [summoner]` or are already in queue.")
     else:
         logger.error(f"{ctx.author}({ctx.author.id}) encountered the following error: {error}")
 
+######
+# Dequeue (DQ)
+# Allows a user to dequeue from matchmaking
+# Throws errors if used in DMs, the user is not verified, or is not in queue
+######
 @bot.command(name="dq")
 @commands.check(in_queue)
 @commands.guild_only()
@@ -516,7 +581,6 @@ async def dequeue(ctx):
     else:
         await ctx.send(f"<@{ctx.author.id}>, I couldn't remove you from the queue. Please try again, and if the problem persists let the bot owner know.")
 
-
 @dequeue.error
 async def dequeue_error(ctx, error):
     if isinstance(error, commands.NoPrivateMessage):
@@ -531,4 +595,5 @@ Run Bot
 """
 
 player_count.start()
+matchmake.start()
 bot.run(settings['bot-token'])
