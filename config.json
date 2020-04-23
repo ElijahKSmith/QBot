@@ -1,5 +1,6 @@
 {
     "prefix": "!",
+    "channel": "channel-id-here",
     "bot-token": "your-token-here",
     "riot-api-key": "your-api-key-here",
     "region": "na"
