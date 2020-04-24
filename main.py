@@ -58,6 +58,7 @@ with open('config.json') as cfg:
     cfg.close()
 
 rgkey = settings['riot-api-key']
+announce_channel = int(settings['channel'])
 
 #Get region from config and set host
 host = switch_platform(settings['region'].lower())
@@ -184,11 +185,30 @@ async def register(ctx, *, args):
             await ctx.send(f"<@{member}> ERROR {response.status_code}, no other information is available.")
         return
 
-    #Add the user to the DB in the unverified table
-    info = (str(member), summoner['name'])
+    #Check to see if the Summoner already exists in verified or unverified
+    puuid = (summoner['puuid'],)
 
     conn = sqlite3.connect('server.db')
     c = conn.cursor()
+    c.execute("SELECT * FROM verified WHERE puuid=?", puuid)
+    result = c.fetchone()
+
+    if result != None:
+        conn.close()
+        await ctx.send(f"<@{member}>, that account has already been bound to another user.")
+        return
+
+    summoner_name = (summoner['name'],)
+    c.execute("SELECT * FROM unverified WHERE summoner=?", summoner_name)
+    result = c.fetchone()
+
+    if result != None:
+        conn.close()
+        await ctx.send(f"<@{member}>, that account is already pending verification by another user.")
+        return
+
+    #Add the user to the DB in the unverified table
+    info = (str(member), summoner['name'])
     c.execute("INSERT INTO unverified VALUES (?,?)", info)
     conn.commit()
     logger.info(f"Wrote {str(info)} to table unverified")
@@ -263,6 +283,26 @@ async def done(ctx):
         except:
             await ctx.send(f"ERROR {response.status_code}, no other information is available.")
         return
+
+    #Make sure that the Summoner has not already been verified by another user, if so remove it
+    puuid = (summoner['puuid'],)
+
+    conn = sqlite3.connect('server.db')
+    c = conn.cursor()
+    c.execute("SELECT * FROM verified WHERE puuid=?", puuid)
+    result = c.fetchone()
+
+    if result != None:
+        params = (str(member),)
+
+        c.execute("DELETE FROM unverified WHERE discordId=?", params)
+        conn.commit()
+        logger.info(f"Entry {member} removed from table unverified because Summoner is already verified")
+        conn.close()
+
+        await ctx.send(f"The account you attempted to bind has already been verified by another user. Please restart the process with a different account.")
+    else:
+        conn.close()
 
     #Pull the 3rd party code that the user inputted
     query = host + 'platform/v4/third-party-code/by-summoner/' + summoner['id']
