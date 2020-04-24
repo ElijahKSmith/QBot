@@ -290,9 +290,9 @@ async def done(ctx):
     conn = sqlite3.connect('server.db')
     c = conn.cursor()
     c.execute("SELECT * FROM verified WHERE puuid=?", puuid)
-    result = c.fetchone()
+    check_result = c.fetchone()
 
-    if result != None:
+    if check_result != None:
         params = (str(member),)
 
         c.execute("DELETE FROM unverified WHERE discordId=?", params)
@@ -301,6 +301,7 @@ async def done(ctx):
         conn.close()
 
         await ctx.send(f"The account you attempted to bind has already been verified by another user. Please restart the process with a different account.")
+        return
     else:
         conn.close()
 
