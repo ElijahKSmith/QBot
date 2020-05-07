@@ -3,6 +3,7 @@ import logging
 import json
 import sqlite3
 import requests
+import itertools
 
 import checks
 from player import Player
@@ -98,7 +99,7 @@ Background Loops
 ######
 # Updates the message in the bot's "watching" status to show current number of queued players
 ######
-@tasks.loop(seconds=10)
+@tasks.loop(seconds=5)
 async def player_count():
     name = str(len(queue)) + " in queue"
     await bot.change_presence(activity=discord.Activity(name=name, type=discord.ActivityType.watching))
@@ -112,7 +113,105 @@ async def player_count_before():
 ######
 @tasks.loop()
 async def matchmake():
-    pass
+    if len(queue) < 10:
+        pass
+    else:
+        #so my idea here is to use itertools to create combinations of 10 from objects in queue
+        #then create permutations of those objects (3.286m each combination)
+        #try to find a match using those permutations, if not go to next combination
+        #assign  to teams such that i%2=0 is on team2 (evens and odds)
+
+        found = False
+
+        for combination in itertools.combinations(queue, 10):
+            for permutation in itertools.permutations(combination, 10):
+                bluteam = []
+                redteam = []
+                bluavg = 0
+                redavg = 0
+
+                #Assign every other player to the same team
+                for i in range(len(permutation)):
+                    if i % 2 == 0:
+                        bluteam.append(permutation[i])
+                    else:
+                        redteam.append(permutation[i])
+
+                #Get the average blue team ELO
+                for i in range(len(bluteam)):
+                    bluavg += bluteam[i].rank
+                bluavg = bluavg // (i+1)
+
+                #Get the average red team ELO
+                for i in range(len(redteam)):
+                    redavg += redteam[i].rank
+                redavg = redavg // (i+1)
+
+                #Compare team ELO and see if it's within 10%? (placeholder percentage)
+                #If it is, break and print. Else, keep going
+                if bluavg == redavg:
+                    found = True
+                    break
+                elif bluavg < redavg:
+                    newavg = bluavg * 1.1
+
+                    if newavg >= redavg:
+                        found = True
+                        break
+                else:
+                    newavg = redavg * 1.1
+
+                    if newavg >= bluavg:
+                        found = True
+                        break
+
+            if found:
+                break
+
+        if found:
+            #Remove the players in the found match from the queue
+            for p in bluteam:
+                queue.remove(p)
+
+            for p in redteam:
+                queue.remove(p)
+
+            #Create and send embed
+            channel = bot.get_channel(announce_channel)
+            embed = discord.Embed(title="Match found!", color=0x34b0d9)
+
+            file = discord.File("icon.png", filename="icon.png")
+            embed.set_thumbnail(url='attachment://icon.png')
+
+            team1 = ""
+
+            for i in range(len(bluteam)):
+                team1 = team1 + bluteam[i].summoner + " (" + bluteam[i].rank + ")"
+
+                if i < 4:
+                    team1 += "\n"
+
+            team2 = ""
+
+            for i in range(len(redteam)):
+                team2 = team2 + redteam[i].summoner + " (" + redteam[i].rank + ")"
+
+                if i < 4:
+                    team2 += "\n"
+
+            embed.add_field(name="Blue (Left)", value=team1, inline=False)
+            embed.add_field(name="Red (Right)", value=team2, inline=False)
+            embed.set_footer(text=f"DEBUG: Blue ELO - {bluavg}, Red ELO - {redavg}")
+
+            notification = ""
+
+            for i in range(len(bluteam)):
+                notification = notification + "<@" + bluteam[i].discordId + ">"
+
+            for i in range(len(redteam)):
+                notification = notification + "<@" + redteam[i].discordId + ">"
+
+            await channel.send(notification, file=file, embed=embed)
 
 @matchmake.before_loop
 async def matchmake_before():
