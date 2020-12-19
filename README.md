@@ -1,3 +1,5 @@
+This project is no longer in development. If you wish to continue the devleopment on your own, please fork the repository and adhere to the license restrictions.
+
 # QBot
 QBot is a Discord bot that makes use of the Riot Games API for self-hosting a private League of Legends matchmaking system in a Discord server!
 
